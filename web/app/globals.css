@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+/* The site has one theme. Leftover `dark:` classes must never fire from the visitor's system setting,
+   so the variant is tied to a class that is never set. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Design tokens: a calm, dark, warm-neutral console, in the manner of the Claude Console. Surfaces step by
+   tone and a hairline, never by shadow or gradient. Colour is for status and for the line itself. */
+:root {
+  --frame: #151514; /* the page and the sidebar */
+  --sheet: #1c1b19; /* a card */
+  --tile: #262521; /* a raised part of a card: a field, a chip, a hover */
+  --board: #151514;
+  --line: #2f2d29; /* the one hairline */
+  --ink: #ece9e1;
+  --muted: #9d998e;
+  --accent: #d97757; /* the focus ring and the product mark; nothing else */
+  --accent-ink: #151514;
+  --bad: #f2877a; /* text and lines for a wrong answer and the likely cause */
+  --bad-tint: #3a2321;
+  --bad-solid: #b8382c;
+  --good: #7ad19b;
+  --good-tint: #1d3425;
+  --good-solid: #2e8b57;
+  --warn: #e6b45e;
+  --warn-tint: #342c1c;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-board: var(--board);
+  --color-tile: var(--tile);
+  --color-frame: var(--frame);
+  --color-sheet: var(--sheet);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-bad: var(--bad);
+  --color-bad-tint: var(--bad-tint);
+  --color-bad-solid: var(--bad-solid);
+  --color-good: var(--good);
+  --color-good-tint: var(--good-tint);
+  --color-good-solid: var(--good-solid);
+  --color-warn: var(--warn);
+  --color-warn-tint: var(--warn-tint);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-serif: var(--font-newsreader), Georgia, serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--frame);
+  color: var(--ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+h1, h2, h3 { font-family: var(--font-newsreader), Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* A card: flat, one hairline, one radius. */
+.card { background: var(--sheet); border: 1px solid var(--line); border-radius: 12px; }
+
+/* Buttons: one shape. The primary one is light on the dark page, as in the console. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  border-radius: 8px; padding: 0.5rem 0.95rem; font-weight: 500;
+  border: 1px solid var(--line); background: var(--tile); color: var(--ink); cursor: pointer;
+}
+.btn:hover { background: #2f2e29; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: var(--ink); border-color: var(--ink); color: var(--frame); }
+.btn-primary:hover { background: #fff; }
+
+/* The graph scrolls sideways on a narrow screen; the scrollbar stays quiet. */
+.graph-scroll { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+
+/* Nodes ease in once when a new line is opened. Transform and opacity only. */
+@keyframes arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.arrive { animation: arrive 0.35s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .arrive { animation: none; } }
+
+/* A line being drawn draws itself once. */
+@keyframes draw { from { stroke-dashoffset: var(--len, 400); } to { stroke-dashoffset: 0; } }
+.draw { stroke-dasharray: var(--len, 400); animation: draw 0.6s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .draw { animation: none; stroke-dasharray: none; } }

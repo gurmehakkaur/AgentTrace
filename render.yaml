@@ -1,0 +1,83 @@
+# Render Blueprint: two web services from one repo. Secrets are `sync: false`:
+# Render asks for them once when the Blueprint is created, then they live in the dashboard.
+# Phase 0 declares only what Phase 0 needs; later phases append their own vars.
+services:
+  - type: web
+    name: agenttrace-api
+    runtime: python
+    # No rootDir: the api imports the sibling sdk/ package, so build from the repo root.
+    plan: free # Phase 10: switch to starter so it never sleeps mid-demo
+    buildCommand: pip install ./sdk ./api
+    startCommand: cd api && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ENV
+        value: prod
+      - key: WEB_ORIGINS # the agenttrace-web URL, e.g. https://agenttrace-web.onrender.com
+        sync: false
+      - key: SURREAL_URL
+        sync: false
+      - key: SURREAL_NS
+        sync: false
+      - key: SURREAL_DB
+        sync: false
+      - key: SURREAL_USER
+        sync: false
+      - key: SURREAL_PASS
+        sync: false
+      - key: CLERK_ISSUER # e.g. https://<your-instance>.clerk.accounts.dev
+        sync: false
+      - key: CLERK_JWKS_URL # <issuer>/.well-known/jwks.json
+        sync: false
+      # Live experiments and root-cause analysis run on the server, so it needs these:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TOOLS_BACKEND
+        value: era
+      - key: DEMO_ACCOUNT_ID # the Era account the demo workflow writes a brief for
+        value: acct-103
+      - key: ZENDESK_BASE_URL # the four values Era generated; copy them from your local .env
+        sync: false
+      - key: ZENDESK_MCP_HEADER # contains the Era token: it expires, see the README
+        sync: false
+      - key: SALESFORCE_BASE_URL
+        sync: false
+      - key: SALESFORCE_MCP_HEADER
+        sync: false
+      # Agent Memory (failure patterns). Optional: without these the app runs, it just does not
+      # remember or recall.
+      - key: SPECTRON_ENDPOINT
+        sync: false
+      - key: SPECTRON_CONTEXT
+        sync: false
+      - key: SPECTRON_API_KEY
+        sync: false
+
+  - type: web
+    name: agenttrace-web
+    runtime: node
+    rootDir: web
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.2
+      # Inlined at BUILD time: set before the first build, and redeploy after changing it.
+      - key: NEXT_PUBLIC_API_URL # the agenttrace-api URL
+        sync: false
+      # Clerk. The publishable key is inlined at BUILD time, like NEXT_PUBLIC_API_URL.
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_CLERK_SIGN_IN_URL
+        value: /sign-in
+      - key: NEXT_PUBLIC_CLERK_SIGN_UP_URL
+        value: /sign-up
+      - key: NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL
+        value: /runs
+      - key: NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL
+        value: /runs

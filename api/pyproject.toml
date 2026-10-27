@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agenttrace-api"
+version = "0.0.1"
+description = "AgentTrace API: record, fork and replay multi-agent LLM runs."
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "surrealdb>=2.0",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    "anthropic>=0.40",
+    "pyjwt[crypto]>=2.8",
+    # Agent Memory client. A prerelease, pinned exactly so pip accepts it without --pre. It is
+    # standalone (needs only aiohttp + requests), so the surrealdb 2.x database SDK stays as is.
+    "surrealdb-memory==1.0.0b1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["live: hits the real SurrealDB (set RUN_LIVE=1)"]

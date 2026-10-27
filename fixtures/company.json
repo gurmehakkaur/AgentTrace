@@ -1,0 +1,152 @@
+{
+  "accounts": {
+    "acct-1": {
+      "name": "Fixture Co",
+      "tickets": [
+        {
+          "id": 1,
+          "status": "new",
+          "subject": "Checkout page times out for EU customers"
+        },
+        {
+          "id": 2,
+          "status": "open",
+          "subject": "Invoice export missing line items"
+        },
+        {
+          "id": 3,
+          "status": "open",
+          "subject": "SSO login loop on Safari"
+        },
+        {
+          "id": 4,
+          "status": "pending",
+          "subject": "Webhook retries not firing"
+        },
+        {
+          "id": 5,
+          "status": "solved",
+          "subject": "Password reset email delayed"
+        },
+        {
+          "id": 6,
+          "status": "solved",
+          "subject": "Dashboard chart colours wrong"
+        },
+        {
+          "id": 7,
+          "status": "closed",
+          "subject": "Onboarding call follow-up"
+        },
+        {
+          "id": 8,
+          "status": "closed",
+          "subject": "Billing address update"
+        },
+        {
+          "id": 9,
+          "status": "closed",
+          "subject": "Feature request: CSV import"
+        }
+      ],
+      "opportunities": [
+        {
+          "Id": "deal-1",
+          "Name": "Fixture Co - Renewal",
+          "Amount": 120000.0,
+          "StageName": "Negotiation",
+          "IsClosed": false
+        },
+        {
+          "Id": "deal-2",
+          "Name": "Fixture Co - Add-on seats",
+          "Amount": 30500.5,
+          "StageName": "Proposal",
+          "IsClosed": false
+        },
+        {
+          "Id": "deal-3",
+          "Name": "Fixture Co - Pilot",
+          "Amount": 50000.0,
+          "StageName": "Closed Won",
+          "IsClosed": true
+        }
+      ]
+    },
+    "acct-2": {
+      "name": "Quiet Co",
+      "tickets": [
+        {
+          "id": 20,
+          "status": "closed",
+          "subject": "Welcome"
+        },
+        {
+          "id": 21,
+          "status": "solved",
+          "subject": "Minor typo in docs"
+        }
+      ],
+      "opportunities": [
+        {
+          "Id": "deal-20",
+          "Name": "Quiet Co - Renewal",
+          "Amount": 18000.0,
+          "StageName": "Prospecting",
+          "IsClosed": false
+        }
+      ]
+    },
+    "acct-3": {
+      "name": "Busy Co",
+      "tickets": [
+        {
+          "id": 31,
+          "status": "open",
+          "subject": "Export fails for large files"
+        },
+        {
+          "id": 32,
+          "status": "new",
+          "subject": "Cannot invite a teammate"
+        },
+        {
+          "id": 33,
+          "status": "pending",
+          "subject": "Billing contact bounce"
+        },
+        {
+          "id": 34,
+          "status": "hold",
+          "subject": "Waiting on legal review"
+        },
+        {
+          "id": 35,
+          "status": "solved",
+          "subject": "Typo in invoice"
+        },
+        {
+          "id": 36,
+          "status": "closed",
+          "subject": "Old onboarding thread"
+        }
+      ],
+      "opportunities": [
+        {
+          "Id": "deal-31",
+          "Name": "Busy Co - Renewal",
+          "Amount": 200000.0,
+          "StageName": "Negotiation",
+          "IsClosed": false
+        },
+        {
+          "Id": "deal-32",
+          "Name": "Busy Co - Services",
+          "Amount": 45000.0,
+          "StageName": "Closed Won",
+          "IsClosed": true
+        }
+      ]
+    }
+  }
+}

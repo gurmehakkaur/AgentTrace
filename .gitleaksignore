@@ -1,0 +1,3 @@
+# Accepted false positive: a fabricated JWT used as a redaction-test fixture in the Phase 2 commit
+# (header {"alg":"RS256"}, payload {"sub":"user_123"}, signature "signature_12345"). Not a credential.
+6215904c71bb907bb541a9b53eddc13cd9846e53:sdk/tests/test_redaction.py:jwt:66

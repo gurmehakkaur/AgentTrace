@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agenttrace-sdk"
+version = "0.0.1"
+description = "AgentTrace recorder: turn a multi-agent workflow run into redacted, replayable steps."
+requires-python = ">=3.11"
+dependencies = [] # stdlib only: the SDK must be importable by external agents with no extras
+
+[project.scripts]
+agenttrace = "agenttrace_sdk.cli:main"
+agenttrace-mcp = "agenttrace_sdk.mcp:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["agenttrace_sdk*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."] # run `pytest sdk/` without installing the package

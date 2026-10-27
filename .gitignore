@@ -1,0 +1,40 @@
+# --- secrets: never commit. Only .env.example is tracked. ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# --- node / next ---
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+npm-debug.log*
+
+# --- os / editor ---
+.DS_Store
+.idea/
+.vscode/
+
+# --- misc ---
+*.log
+coverage/
+.vercel
+
+# --- third-party design skills (installed locally) and their working files ---
+.claude/skills/
+.taste-skill/
