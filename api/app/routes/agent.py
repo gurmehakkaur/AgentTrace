@@ -96,7 +96,9 @@ async def rerun_experiment(
     doc = await db.get_experiment(key.workspace, experiment_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Experiment not found")
-    body = ExperimentCreate(run_id=doc["parent_run"], fork_node_run_idx=doc["fork_idx"], edit=doc["edit_patch"], n=doc["n"])
+    patch = doc["edit_patch"]
+    change = {"prompt": patch["prompt"]} if doc.get("edit_mode") == "prompt" else {"edit": patch}
+    body = ExperimentCreate(run_id=doc["parent_run"], fork_node_run_idx=doc["fork_idx"], n=doc["n"], **change)
     return {"id": await launch(key.workspace, key.user_id, body, runtime)}
 
 

@@ -108,7 +108,8 @@ async def remember_experiment(
     )
     text = pattern_text(
         workflow=run["workflow"], agent=agent, node_run_idx=k, fields=failing_fields(run),
-        patch_keys=sorted(experiment["edit_patch"]), hypothesis=hypothesis, experiment_id=experiment["id"],
+        patch_keys=["the agent's instructions"] if experiment.get("edit_mode") == "prompt" else sorted(experiment["edit_patch"]),
+        hypothesis=hypothesis, experiment_id=experiment["id"],
         run_id=run["id"], control=experiment["control"], treatment=experiment["treatment"],
         p=experiment["stats"]["fisher_p"],
     )

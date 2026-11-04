@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { agentOrder, changedKeys, forkPrefill, nodeRuns, parseEdit, stateBefore } from "./runs.ts";
+import { agentOrder, changedKeys, forkPrefill, nodeRuns, parseEdit, recordedInstructions, stateBefore } from "./runs.ts";
 import type { Step } from "./types.ts";
 
 const step = (idx: number, node_run_idx: number, agent: string, over: Partial<Step> = {}): Step => ({
@@ -56,4 +56,24 @@ test("an RCA patch pre-fills the editor so that exactly the patch is what gets s
   const patch = { plan: { f: ["new", "open"] } };
   assert.deepEqual(changedKeys(prefill, { ...prefill, ...patch }), patch);
   assert.deepEqual(changedKeys(prefill, { ...prefill, ...{ plan: prefill.plan } }), {}); // a no-op patch sends nothing
+});
+
+test("an agent's recorded instructions are the system prompt of its first model call", () => {
+  const withPrompt = nodeRuns([
+    step(1, 1, "planner", { input: { system: "Plan the work.", messages: [] }, writes: ["plan"], state_after: { plan: 1 } }),
+    step(2, 2, "researcher", { kind: "tool" }),
+    step(3, 2, "researcher", { input: { system: "Summarise." } }),
+  ]);
+  assert.equal(recordedInstructions(withPrompt[0]), "Plan the work.");
+  assert.equal(recordedInstructions(withPrompt[1]), "Summarise.");
+});
+
+test("no plain-text instructions means nothing to edit", () => {
+  const runs = nodeRuns([
+    step(1, 1, "a", { input: { system: [{ type: "text", text: "blocks" }] } }),
+    step(2, 2, "b", { input: { system: "   " } }),
+    step(3, 3, "c", { kind: "tool", input: { system: "tools have no instructions" } }),
+    step(4, 4, "d", { input: null }),
+  ]);
+  assert.deepEqual(runs.map(recordedInstructions), [null, null, null, null]);
 });

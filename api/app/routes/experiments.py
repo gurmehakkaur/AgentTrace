@@ -29,7 +29,7 @@ async def launch(workspace: str, user_id: str, body: ExperimentCreate, runtime: 
             await enforce_daily_cap(user_id)
             experiment_id = await create_experiment(
                 workspace, body.run_id, body.fork_node_run_idx, body.edit, body.n,
-                client=client, tools=tools, created_by=user_id,
+                client=client, tools=tools, created_by=user_id, prompt=body.prompt,
             )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from None
@@ -39,7 +39,7 @@ async def launch(workspace: str, user_id: str, body: ExperimentCreate, runtime: 
         raise HTTPException(status_code=409, detail=str(exc)) from None
     await audit.record(workspace, user_id, "experiment.launch", experiment_id, {
         "parent_run": body.run_id, "fork_node_run_idx": body.fork_node_run_idx, "n": body.n,
-        "edit_keys": sorted(body.edit),
+        "edit_keys": ["prompt"] if body.prompt is not None else sorted(body.edit),
     })
     return experiment_id
 

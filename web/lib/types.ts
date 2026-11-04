@@ -83,7 +83,8 @@ export type Experiment = {
   parent_run: string;
   fork_node_run_idx: number;
   n: number;
-  edit_patch: State;
+  edit_patch: State; // edit_mode "prompt": { prompt: "<the new instructions>" }
+  edit_mode?: "output" | "prompt"; // "output": what the agent produced was replaced. "prompt": the agent ran again with new instructions
   control: Arm;
   treatment: Arm;
   tiles: Tile[];

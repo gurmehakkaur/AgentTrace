@@ -47,6 +47,14 @@ export function forkPrefill(run: NodeRun): State {
   return Object.fromEntries(run.writes.filter((k) => k in after).map((k) => [k, after[k]]));
 }
 
+/** The instructions the agent was recorded with (the system prompt of its model call), or null when it
+ * has none in plain text. This is what the instruction editor starts with. */
+export function recordedInstructions(run: NodeRun): string | null {
+  const llm = run.steps.find((s) => s.kind === "llm");
+  const input = llm?.input as { system?: unknown } | null | undefined;
+  return typeof input?.system === "string" && input.system.trim() !== "" ? input.system : null;
+}
+
 /** Only the top-level keys whose value differs from the prefill: that is the edit we send. */
 export function changedKeys(prefill: State, edited: State): State {
   return Object.fromEntries(

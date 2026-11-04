@@ -56,6 +56,9 @@ def view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": doc["id"], "status": doc["status"], "parent_run": doc["parent_run"],
         "fork_node_run_idx": doc["fork_idx"], "n": doc["n"], "edit_patch": doc["edit_patch"],
+        # "output": the agent's output was replaced. "prompt": the agent ran again with new instructions,
+        # and edit_patch is {"prompt": <the new instructions>}.
+        "edit_mode": doc.get("edit_mode", "output"),
         "control": doc["control"], "treatment": doc["treatment"], "tiles": tiles,
         "stats": doc.get("stats") or _stats(doc),
         "tokens_used": doc["tokens_used"], "token_ceiling": doc["token_ceiling"],
@@ -67,30 +70,34 @@ def view(doc: dict[str, Any]) -> dict[str, Any]:
 
 async def create_experiment(
     workspace: str, parent_run_id: str, fork_node_run_idx: int, edit: dict[str, Any], n: int,
-    *, client: Any, tools: Any, created_by: str,
+    *, client: Any, tools: Any, created_by: str, prompt: str | None = None,
 ) -> str:
     """Validate, store the experiment as 'queued', start it in the background, return its id.
 
-    Raises what prepare_fork raises (LookupError, ValueError, ModelPinError, SideEffectBlocked),
-    and ValueError if n is outside 1..MAX_N, all before anything is created.
+    Give `edit` (replace what the agent produced) or `prompt` (new instructions, the agent runs
+    again). Raises what prepare_fork raises (LookupError, ValueError, ModelPinError,
+    SideEffectBlocked), and ValueError if n is outside 1..MAX_N, all before anything is created.
     """
     settings = get_settings()
     if not 1 <= n <= settings.max_n:
         raise ValueError(f"n must be between 1 and {settings.max_n}")
     parent = await db.get_run_with_steps(workspace, parent_run_id)
     if parent is not None and parent["workflow"] not in REGISTRY:
+        if prompt is not None:
+            # The agents of an outside workflow live in the customer's code, which this server cannot change.
+            raise ValueError("new instructions can only be tested on workflows registered on this server; change a value instead")
         # Not one of ours to run: the customer's worker runs it. Same checks on the fork point, no live run here.
         from app.experiments import worker  # noqa: PLC0415 (worker imports this module)
 
         return await worker.create(workspace, {**parent, "id": parent_run_id}, fork_node_run_idx, edit, n, created_by)
-    await prepare_fork(workspace, parent_run_id, fork_node_run_idx, edit, tools)
+    await prepare_fork(workspace, parent_run_id, fork_node_run_idx, None if prompt is not None else edit, tools, prompt=prompt)
 
     experiment_id = uuid4().hex
     # Control and treatment interleaved, so a token cap leaves the two arms balanced.
     tiles = [{"arm": arm, "i": i, "status": "queued"} for i in range(1, n + 1) for arm in ("control", "treatment")]
-    stored_edit, _ = redact(edit)
+    stored_edit, _ = redact({"prompt": prompt} if prompt is not None else edit)
     doc = {
-        "parent_run": parent_run_id, "fork_idx": fork_node_run_idx, "edit_mode": "output",
+        "parent_run": parent_run_id, "fork_idx": fork_node_run_idx, "edit_mode": "prompt" if prompt is not None else "output",
         "edit_patch": stored_edit, "n": n, "control": {"pass": 0, "total": 0},
         "treatment": {"pass": 0, "total": 0}, "tiles": tiles, "status": "queued",
         "tokens_used": 0, "token_ceiling": settings.max_tokens_per_experiment,
@@ -98,14 +105,15 @@ async def create_experiment(
     }
     await db.create_experiment(workspace, experiment_id, doc)
 
-    task = asyncio.create_task(_run(workspace, experiment_id, doc, edit, client, tools))
+    task = asyncio.create_task(_run(workspace, experiment_id, doc, edit, client, tools, prompt))
     _TASKS[experiment_id] = task
     task.add_done_callback(lambda _t: _TASKS.pop(experiment_id, None))
     return experiment_id
 
 
 async def _run(
-    workspace: str, experiment_id: str, doc: dict[str, Any], edit: dict[str, Any], client: Any, tools: Any
+    workspace: str, experiment_id: str, doc: dict[str, Any], edit: dict[str, Any], client: Any, tools: Any,
+    prompt: str | None = None,
 ) -> None:
     gate, lock = asyncio.Semaphore(CONCURRENCY), asyncio.Lock()
     skipped = False
@@ -129,8 +137,9 @@ async def _run(
             arm, outcome, tokens = tile["arm"], "error", 0
             try:
                 run_id = await run_fork(
-                    workspace, doc["parent_run"], doc["fork_idx"], edit if arm == "treatment" else None,
-                    arm, client=client, tools=tools, experiment_id=experiment_id,
+                    workspace, doc["parent_run"], doc["fork_idx"],
+                    edit if arm == "treatment" and prompt is None else None,
+                    arm, client=client, tools=tools, experiment_id=experiment_id, prompt=prompt,
                 )
                 tile["run_id"] = run_id
                 summary = await db.get_run_summary(workspace, run_id) or {}

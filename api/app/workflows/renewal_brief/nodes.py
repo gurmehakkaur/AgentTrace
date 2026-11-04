@@ -31,13 +31,15 @@ async def _ask(llm: Any, system: str, user: str, max_tokens: int) -> str:
     return next(b.text for b in reply.content if b.type == "text")
 
 
-def build_nodes(planner_system: str) -> dict[str, Any]:
+def build_nodes(planner_system: str, systems: dict[str, str] | None = None) -> dict[str, Any]:
     """Nodes keyed by name. The planner prompt is a parameter so the same code records the
-    good run and the planted-bug run."""
+    good run and the planted-bug run. `systems` replaces an agent's instructions by agent name:
+    this is how a fork re-runs one agent with edited instructions."""
+    systems = systems or {}
 
     @node("planner", reads=["request"], writes=["plan"])
     async def planner(state, llm, tools):
-        return {"plan": parse_json(await _ask(llm, planner_system, state["request"], 4000))}
+        return {"plan": parse_json(await _ask(llm, systems.get("planner", planner_system), state["request"], 4000))}
 
     @node("researcher", reads=["plan"], writes=["findings"])
     async def researcher(state, llm, tools):
@@ -48,7 +50,7 @@ def build_nodes(planner_system: str) -> dict[str, Any]:
         tickets = await tools.zendesk_search_tickets(plan["account_id"], statuses)
         pipeline = await tools.salesforce_list_open_opportunities(plan["account_id"])
         summary = await _ask(
-            llm, RESEARCHER_SYSTEM, json.dumps({"tickets": tickets, "pipeline": pipeline}), 4000
+            llm, systems.get("researcher", RESEARCHER_SYSTEM), json.dumps({"tickets": tickets, "pipeline": pipeline}), 4000
         )
         return {"findings": {"tickets": tickets, "pipeline": pipeline, "summary": summary}}
 
@@ -61,7 +63,7 @@ def build_nodes(planner_system: str) -> dict[str, Any]:
         parts = [f"Request: {state['request']}", "Findings:\n" + json.dumps(state["findings"])]
         if state.get("draft") and state.get("feedback"):
             parts += [f"Previous draft:\n{state['draft']}", f"Reviewer feedback: {state['feedback']}"]
-        draft = await _ask(llm, WRITER_SYSTEM, "\n\n".join(parts), 8000)
+        draft = await _ask(llm, systems.get("writer", WRITER_SYSTEM), "\n\n".join(parts), 8000)
         return {"draft": draft, "drafts": state.get("drafts", 0) + 1}
 
     @node(
@@ -71,7 +73,7 @@ def build_nodes(planner_system: str) -> dict[str, Any]:
     )
     async def critic(state, llm, tools):
         user = f"Findings:\n{json.dumps(state['findings'])}\n\nBrief:\n{state['draft']}"
-        review = parse_json(await _ask(llm, CRITIC_SYSTEM, user, 4000))
+        review = parse_json(await _ask(llm, systems.get("critic", CRITIC_SYSTEM), user, 4000))
         if review.get("verdict") not in ("approve", "revise"):
             raise ValueError(f"critic verdict must be approve or revise: {review!r}")
         return {

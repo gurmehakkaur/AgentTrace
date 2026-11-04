@@ -15,7 +15,8 @@ from app.workflows.renewal_brief.prompts import PLANNER_SYSTEM_GOOD
 @dataclass(frozen=True)
 class Workflow:
     name: str
-    build_nodes: Callable[[], dict[str, Any]]
+    # `systems` replaces an agent's instructions by agent name (a fork with edited instructions).
+    build_nodes: Callable[[dict[str, str] | None], dict[str, Any]]
     next_node: Callable[[dict[str, Any]], str]
     ground_truth: Callable[[dict[str, Any], Any], Awaitable[dict[str, Any]]]
     check: Callable[[dict[str, Any], dict[str, Any]], tuple[bool, dict[str, Any]]]
@@ -33,9 +34,9 @@ async def _renewal_truth(state: dict[str, Any], tools: Any) -> dict[str, Any]:
 REGISTRY: dict[str, Workflow] = {
     "renewal_brief": Workflow(
         name="renewal_brief",
-        # A fork never re-runs the planner (it is node run 1: copied or edited), so the
-        # planner prompt here is irrelevant to forks; the good one is the safe default.
-        build_nodes=lambda: build_nodes(PLANNER_SYSTEM_GOOD),
+        # An output-edit fork never re-runs the agent it forks at, so the planner prompt here only
+        # matters to a prompt-edit fork, which always passes the planner's instructions in `systems`.
+        build_nodes=lambda systems=None: build_nodes(PLANNER_SYSTEM_GOOD, systems),
         next_node=next_node,
         ground_truth=_renewal_truth,
         check=check,

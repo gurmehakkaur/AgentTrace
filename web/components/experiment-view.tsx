@@ -60,7 +60,9 @@ export function ExperimentView({
       <details className="rounded-lg border border-line p-3">
         <summary className="cursor-pointer text-sm font-medium">What was changed</summary>
         <div className="mt-3">
-          <JsonBlock label="The new value the agent was given" value={e.edit_patch} />
+          {e.edit_mode === "prompt"
+            ? <JsonBlock label="The new instructions the agent ran with (the other side used the recorded ones)" value={e.edit_patch.prompt} />
+            : <JsonBlock label="The new value the agent was given" value={e.edit_patch} />}
         </div>
       </details>
     </div>

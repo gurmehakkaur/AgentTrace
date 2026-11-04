@@ -5,10 +5,12 @@ Experiment and RcaReport models arrive with the phases that use them."""
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # Becomes part of a SurrealDB record id, so keep it boring.
 _ID = r"^[A-Za-z0-9_-]{8,64}$"
+
+MAX_PROMPT_CHARS = 8000  # an agent's instructions; far above any prompt in the demo workflow
 
 
 class Step(BaseModel):
@@ -56,10 +58,21 @@ class RunFinish(BaseModel):
 class ExperimentCreate(BaseModel):
     run_id: str
     fork_node_run_idx: int = Field(ge=1)
-    # Treatment edit: top-level state keys to overwrite at the fork point. The control arm
-    # forks at the same point with no edit, so an experiment needs one.
-    edit: dict[str, Any] = Field(min_length=1)
+    # Treatment edit, one of two kinds. `edit`: top-level state keys to overwrite at the fork point.
+    # `prompt`: new instructions for the agent at the fork point, which then runs live again (the
+    # control arm re-runs it with the recorded instructions). The control arm otherwise forks at the
+    # same point with no change, so an experiment needs exactly one of them.
+    edit: dict[str, Any] = {}
+    prompt: str | None = Field(default=None, min_length=1, max_length=MAX_PROMPT_CHARS)
     n: int = Field(ge=1, le=100)  # the real ceiling is MAX_N, enforced with a clear message
+
+    @model_validator(mode="after")
+    def _exactly_one_change(self) -> "ExperimentCreate":
+        if self.prompt is not None and self.edit:
+            raise ValueError("send either edit or prompt, not both")
+        if self.prompt is None and not self.edit:
+            raise ValueError("send edit (a value to change) or prompt (new instructions)")
+        return self
 
 
 class WorkerClaim(BaseModel):

@@ -14,6 +14,10 @@ Given a parent run, a fork point k (a node run, 1-based) and an optional edit:
 State at the fork point is the parent's recorded state_after of node run k, with the edit's
 top-level keys overwritten. The control arm is the same fork with no edit, so control and
 treatment differ in exactly one thing.
+
+The other kind of edit changes an agent's instructions instead of its output. Then node run k is
+not copied at all: it runs live again from the state it started with, in both arms, with the new
+instructions in the treatment arm and the recorded ones in the control arm.
 """
 
 import inspect
@@ -90,6 +94,30 @@ class ForkPlan:
     prefix: list[dict[str, Any]]  # recorded steps of node runs before k
     node_k: list[dict[str, Any]]  # recorded steps of node run k
     start_idx: int  # numbering the live steps continue from
+    # Instruction edit only: node run k runs live again, so its agent and the instructions it was
+    # recorded with (the control arm keeps them) are needed. Both None for an output edit.
+    agent: str | None = None
+    recorded_system: str | None = None
+
+
+def _state_before(steps: list[dict[str, Any]], k: int, node_k: list[dict[str, Any]]) -> dict[str, Any]:
+    """The state node run k started from: what node run k-1 left behind. For the first node run
+    there is no earlier step, so it is the state after it minus the keys it wrote (the inputs)."""
+    if k > 1:
+        before = [s for s in steps if s["node_run_idx"] == k - 1]
+        if not before or not isinstance(before[-1]["state_after"], dict):
+            raise ValueError(f"node run {k - 1} has no recorded state_after to restore")
+        return before[-1]["state_after"]
+    after = node_k[-1]["state_after"]
+    return {key: value for key, value in after.items() if key not in node_k[-1]["writes"]}
+
+
+def _recorded_system(node_k: list[dict[str, Any]]) -> str:
+    llm = next((s for s in node_k if s["kind"] == "llm"), None)
+    system = ((llm or {}).get("input") or {}).get("system")
+    if not isinstance(system, str) or not system.strip():
+        raise ValueError("this agent has no plain-text instructions recorded, so they cannot be edited")
+    return system
 
 
 async def prepare_fork(
@@ -99,8 +127,12 @@ async def prepare_fork(
     edit: dict[str, Any] | None,
     tools: Any,
     mocks: dict[str, Any] | None = None,
+    prompt: str | None = None,
 ) -> ForkPlan:
     """Validate a fork and work out what it will copy and restore. Creates nothing.
+
+    `prompt` is the other kind of edit: instead of replacing what node run k produced, node run k
+    runs live again with these instructions (the control arm with the recorded ones).
 
     Raises LookupError (parent not in workspace, or unregistered workflow), ValueError (bad
     fork point or edit), ModelPinError, SideEffectBlocked.
@@ -120,6 +152,8 @@ async def prepare_fork(
     recorded_state = node_k[-1]["state_after"]
     if not isinstance(recorded_state, dict):
         raise ValueError(f"node run {k} has no recorded state_after to restore")
+    if prompt is not None and edit is not None:
+        raise ValueError("change either what the agent produced or its instructions, not both")
     if edit is not None:
         undeclared = sorted(set(edit) - set(node_k[-1]["writes"]))
         if undeclared:
@@ -132,6 +166,13 @@ async def prepare_fork(
 
     prefix = [s for s in steps if s["node_run_idx"] < k]
     prefix_last_idx = max((s["idx"] for s in prefix), default=0)
+    if prompt is not None:
+        recorded_system = _recorded_system(node_k)
+        before = _state_before(steps, k, node_k)
+        if workflow.next_node(before) != node_k[-1]["agent"]:
+            raise ValueError(f"node run {k} cannot be re-run from the recorded state")
+        # Node run k is not copied: it runs live, so its steps are numbered right after the prefix.
+        return ForkPlan(workflow, k, before, prefix, node_k, prefix_last_idx, node_k[-1]["agent"], recorded_system)
     # Live steps continue numbering after what was copied: node run k is either kept as-is
     # (its steps keep their idx) or collapsed into one edited step right after the prefix.
     start_idx = prefix_last_idx + 1 if edit is not None else max(s["idx"] for s in prefix + node_k)
@@ -149,30 +190,40 @@ async def run_fork(
     tools: Any,
     mocks: dict[str, Any] | None = None,
     experiment_id: str | None = None,
+    prompt: str | None = None,
 ) -> str:
     """Create a fork run and return its id. The run's outcome ('pass' | 'fail' | 'error') is
     stored on the run; a failure after the run exists is recorded, not raised. Validation
-    errors (see prepare_fork) are raised before any run is created."""
+    errors (see prepare_fork) are raised before any run is created.
+
+    With `prompt`, node run k runs live in both arms: the treatment arm with the new instructions,
+    the control arm with the ones it was recorded with. Nothing about node run k is copied."""
     mocks = mocks or {}
-    plan = await prepare_fork(workspace, parent_run_id, fork_node_run_idx, edit, tools, mocks)
+    plan = await prepare_fork(workspace, parent_run_id, fork_node_run_idx, edit, tools, mocks, prompt)
     workflow, k = plan.workflow, plan.k
+    systems = None
+    if prompt is not None and plan.agent is not None:
+        systems = {plan.agent: prompt if arm == "treatment" else plan.recorded_system}
 
     run_id: str | None = None
     try:
         async with trace_run(
             workflow.name, DbSink(workspace), origin="live", mocks=mocks,
-            start_idx=plan.start_idx, start_node_run_idx=k,
+            # An instruction edit re-runs node run k itself, so the live numbering starts one earlier.
+            start_idx=plan.start_idx, start_node_run_idx=k - 1 if systems is not None else k,
         ) as run:
             run_id = run.id
             copied = [_copy(s, run.id, "replayed") for s in plan.prefix]
-            if edit is None:
+            if systems is not None:
+                pass  # node run k runs live below
+            elif edit is None:
                 copied += [_copy(s, run.id, "replayed") for s in plan.node_k]
             else:
                 copied.append(_edited_step(run.id, plan.start_idx, k, plan.node_k[-1], edit, plan.state))
             await db.add_steps(workspace, run.id, copied)
             await db.create_fork_edge(workspace, run.id, parent_run_id, k, arm, experiment_id)
 
-            final = await run_to_end(workflow.build_nodes(), workflow.next_node, plan.state, client, tools)
+            final = await run_to_end(workflow.build_nodes(systems), workflow.next_node, plan.state, client, tools)
             passed, detail = workflow.check(final, await workflow.ground_truth(final, tools))
             run.outcome, run.oracle_detail = ("pass" if passed else "fail"), detail
     except Exception as exc:
